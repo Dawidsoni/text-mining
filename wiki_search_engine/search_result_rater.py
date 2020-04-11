@@ -18,13 +18,13 @@ class SearchResultRater(object):
         for title_word in all_title_words:
             word_base_forms = title_words_base_forms[title_word]
             if any([word_base_form in query_base_forms for word_base_form in word_base_forms]):
-                rating += 1
+                rating += 5
         return rating
 
     def _get_content_rating(self, content):
         all_content_words = set(map(lambda x: x.lower(), content.split(" ")))
         all_query_words = set(self.query_words_base_forms.keys())
-        return float(len(all_content_words.intersection(all_query_words)))
+        return float(len(all_content_words.intersection(all_query_words))) * 3
 
     def _get_article_id_rating(self, article_id):
         return np.exp(-article_id * self.ID_RATING_FALL_RATE)

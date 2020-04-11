@@ -8,7 +8,7 @@ from wiki_article import WikiArticle
 def _create_wiki_article(article_id, parsed_article):
     article_parts = parsed_article.split("\n\n")
     title = re.search("TITLE: (.*)", article_parts[0].strip()).group(1)
-    content = article_parts[-1]
+    content = "\n".join(article_parts[1:])
     return WikiArticle(id=article_id, title=title, content=content)
 
 
