@@ -1,6 +1,5 @@
 import re
 import logging
-import itertools
 from collections import defaultdict
 from wiki_article import WikiArticle
 
@@ -36,9 +35,13 @@ def get_default_logger():
     return logging.getLogger("DEFAULT_LOGGER")
 
 
-def get_base_forms_from_text(words_base_forms, text):
-    split_words = set(map(lambda x: x.strip(), text.split(" ")))
-    return set(itertools.chain(*map(
-        lambda x: words_base_forms[x] if x in words_base_forms else [x],
-        split_words
-    )))
+def get_base_forms_from_article(words_base_forms, wiki_article, with_default_word=True):
+    merged_words = " ".join([wiki_article.title, wiki_article.content]).lower()
+    list_of_base_forms = []
+    for word in merged_words.split(" "):
+        cleaned_word = word.strip()
+        if with_default_word and cleaned_word not in words_base_forms:
+            list_of_base_forms.append([cleaned_word])
+        elif cleaned_word in words_base_forms:
+            list_of_base_forms.append(words_base_forms[cleaned_word])
+    return list_of_base_forms

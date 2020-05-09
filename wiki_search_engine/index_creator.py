@@ -9,20 +9,11 @@ from posting_list import PostingList
 from index_storage import IndexStorage
 
 
-def _get_base_forms_from_article(words_base_forms, wiki_article):
-    merged_words = " ".join([wiki_article.title, wiki_article.content]).lower()
-    list_of_base_forms = []
-    for word in merged_words.split(" "):
-        base_forms = utils.get_base_forms_from_text(words_base_forms, word)
-        list_of_base_forms.append(base_forms)
-    return list_of_base_forms
-
-
 def _create_traditional_index(wiki_articles):
     words_base_forms = utils.read_words_base_forms()
     terms_posting_lists = defaultdict(lambda: PostingList())
     for wiki_article in sorted(wiki_articles, key=lambda x: x.id):
-        list_of_base_forms = _get_base_forms_from_article(words_base_forms, wiki_article)
+        list_of_base_forms = utils.get_base_forms_from_article(words_base_forms, wiki_article)
         article_base_forms = set(itertools.chain(*list_of_base_forms))
         for base_form in article_base_forms:
             terms_posting_lists[base_form].append(wiki_article.id)
