@@ -1,39 +1,87 @@
+import itertools
 from collections import defaultdict
 
 import utils
+import argparse
+
+from index_type import IndexType
 from posting_list import PostingList
 from index_storage import IndexStorage
 
 
 def _get_base_forms_from_article(words_base_forms, wiki_article):
     merged_words = " ".join([wiki_article.title, wiki_article.content]).lower()
-    return utils.get_base_forms_from_text(words_base_forms, merged_words)
+    list_of_base_forms = []
+    for word in merged_words.split(" "):
+        base_forms = utils.get_base_forms_from_text(words_base_forms, word)
+        list_of_base_forms.append(base_forms)
+    return list_of_base_forms
 
 
-def _create_terms_posting_lists(wiki_articles):
+def _create_traditional_index(wiki_articles):
     words_base_forms = utils.read_words_base_forms()
     terms_posting_lists = defaultdict(lambda: PostingList())
     for wiki_article in sorted(wiki_articles, key=lambda x: x.id):
-        article_base_forms = _get_base_forms_from_article(words_base_forms, wiki_article)
+        list_of_base_forms = _get_base_forms_from_article(words_base_forms, wiki_article)
+        article_base_forms = set(itertools.chain(*list_of_base_forms))
         for base_form in article_base_forms:
             terms_posting_lists[base_form].append(wiki_article.id)
-    return terms_posting_lists
+    return {"terms_posting_lists": terms_posting_lists}
 
 
-def run_index_creator():
+def _create_positional_index(wiki_articles):
+    words_base_forms = utils.read_words_base_forms()
+    terms_posting_lists = defaultdict(lambda: PostingList())
+    position_counter = 1
+    documents_positions = []
+    for wiki_article in sorted(wiki_articles, key=lambda x: x.id):
+        list_of_base_forms = _get_base_forms_from_article(words_base_forms, wiki_article)
+        documents_positions.append(position_counter)
+        for base_forms in list_of_base_forms:
+            for term in base_forms:
+                terms_posting_lists[term].append(position_counter)
+            position_counter += 1
+        position_counter += 1
+    return {"terms_posting_lists": terms_posting_lists, "documents_positions": documents_positions}
+
+
+def _create_index(index_type, wiki_articles):
+    if index_type == IndexType.TRADITIONAL:
+        return _create_traditional_index(wiki_articles)
+    elif index_type == IndexType.POSITIONAL:
+        return _create_positional_index(wiki_articles)
+    else:
+        raise ValueError(f"Invalid index_type: {index_type}")
+
+
+def _parse_input_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-index_type", type=IndexType, choices=list(IndexType.__dict__.values()))
+    return vars(parser.parse_args())
+
+
+def _save_index_data(index_data, index_storage, logger):
+    logger.info("Saving posting lists to index storage")
+    for term, posting_list in index_data["terms_posting_lists"].items():
+        index_storage.add_indexed_term(term, posting_list)
+    logger.info("Saving documents positions to index storage")
+    if "documents_positions" in index_data:
+        for document_position in index_data["documents_positions"]:
+            index_storage.add_document_position(document_position)
+
+
+def run_index_creator(index_type):
     logger = utils.get_default_logger()
     logger.info("Creating index storage...")
     logger.info("Reading wiki articles...")
     wiki_articles = utils.read_wiki_articles()
-    logger.info("Creating posting lists")
-    terms_posting_lists = _create_terms_posting_lists(wiki_articles)
-    with IndexStorage(truncate_old=True) as index_storage:
+    logger.info("Creating index...")
+    index_data = _create_index(index_type, wiki_articles)
+    with IndexStorage(index_type, truncate_old=True) as index_storage:
         logger.info("Saving wiki articles to index storage")
         for wiki_article in wiki_articles:
             index_storage.add_wiki_article(wiki_article)
-        logger.info("Saving posting lists to index storage")
-        for term, posting_list in terms_posting_lists.items():
-            index_storage.add_indexed_term(term, posting_list)
+        _save_index_data(index_data, index_storage, logger)
         logger.info("Saving words base forms to index storage")
         words_base_forms = utils.read_words_base_forms()
         for word, base_forms in words_base_forms.items():
@@ -42,4 +90,4 @@ def run_index_creator():
 
 
 if __name__ == '__main__':
-    run_index_creator()
+    run_index_creator(**_parse_input_arguments())

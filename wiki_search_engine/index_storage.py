@@ -2,17 +2,20 @@ import sqlite3
 import os
 import json
 
+from index_type import IndexType
 from posting_list import PostingList
 from wiki_article import WikiArticle
 
 
 class IndexStorage(object):
-    DATABASE_NAME = 'data/index.db'
+    TRADITIONAL_INDEX_DATABASE_NAME = 'data/traditional_index.db'
+    POSITIONAL_INDEX_DATABASE_NAME = 'data/positional_index.db'
 
-    def __init__(self, truncate_old):
+    def __init__(self, index_type, truncate_old):
+        self.database_name = IndexStorage._get_database_name(index_type)
         if truncate_old:
-            IndexStorage._truncate_old_if_exists()
-        self.connection = sqlite3.connect(IndexStorage.DATABASE_NAME)
+            self._truncate_old_if_exists()
+        self.connection = sqlite3.connect(self.database_name)
         self.cursor = self.connection.cursor()
         self._create_tables_if_not_exists()
 
@@ -24,9 +27,19 @@ class IndexStorage(object):
         self.connection.close()
 
     @staticmethod
-    def _truncate_old_if_exists():
-        if os.path.exists(IndexStorage.DATABASE_NAME):
-            os.remove(IndexStorage.DATABASE_NAME)
+    def _get_database_name(index_type):
+        if index_type == IndexType.TRADITIONAL:
+            return IndexStorage.TRADITIONAL_INDEX_DATABASE_NAME
+        elif index_type == IndexType.POSITIONAL:
+            return IndexStorage.POSITIONAL_INDEX_DATABASE_NAME
+        elif index_type == IndexType.MIXED:
+            return IndexStorage.TRADITIONAL_INDEX_DATABASE_NAME
+        else:
+            raise ValueError(f"Invalid index_type: {index_type}")
+        
+    def _truncate_old_if_exists(self):
+        if os.path.exists(self.database_name):
+            os.remove(self.database_name)
 
     def _create_tables_if_not_exists(self):
         self.cursor.execute("""
@@ -40,6 +53,10 @@ class IndexStorage(object):
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS word_base_forms
             (word TEXT PRIMARY KEY, base_forms TEXT)
+        """)
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS document_positions
+            (position INTEGER PRIMARY KEY)
         """)
         self.commit_changes()
 
@@ -59,6 +76,12 @@ class IndexStorage(object):
         self.cursor.execute(
             "INSERT INTO word_base_forms (word, base_forms) VALUES (?, ?)",
             (word, json.dumps(base_forms))
+        )
+
+    def add_document_position(self, document_position):
+        self.cursor.execute(
+            "INSERT INTO document_positions (position) VALUES (?)",
+            (document_position, )
         )
 
     def get_terms_postings_lists(self, terms):
@@ -81,6 +104,10 @@ class IndexStorage(object):
             f"SELECT word, base_forms FROM word_base_forms WHERE word IN ({formatted_words})"
         ).fetchall()
         return {x[0]: json.loads(x[1]) for x in words_base_forms}
+
+    def get_document_positions(self):
+        fetched_data = self.cursor.execute("SELECT position FROM document_positions").fetchall()
+        return [x[0] for x in fetched_data]
 
     def commit_changes(self):
         self.connection.commit()

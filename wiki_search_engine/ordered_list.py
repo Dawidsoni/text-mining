@@ -44,3 +44,6 @@ class OrderedList(object):
                 self_index += 1
                 other_index += 1
         return OrderedList(items_union)
+
+    def __iter__(self):
+        return self.items.__iter__()

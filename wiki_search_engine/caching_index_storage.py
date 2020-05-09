@@ -12,8 +12,8 @@ class ListItemCache(object):
 
 class CachingIndexStorage(IndexStorage):
 
-    def __init__(self, truncate_old):
-        super().__init__(truncate_old)
+    def __init__(self, index_type, truncate_old):
+        super().__init__(index_type, truncate_old)
 
     @functools.lru_cache(maxsize=10_000_000)
     def _list_items_cache(self, _func, item):
@@ -47,3 +47,7 @@ class CachingIndexStorage(IndexStorage):
         items_caches = [self._list_items_cache(self.get_words_base_forms, x) for x in words]
         CachingIndexStorage._resolve_items(items_caches, super().get_words_base_forms, default_value=[])
         return {x.item: x.value for x in items_caches}
+
+    @functools.lru_cache(maxsize=1)
+    def get_document_positions(self):
+        return super().get_document_positions()

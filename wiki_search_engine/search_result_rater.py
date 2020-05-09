@@ -8,7 +8,7 @@ class SearchResultRater(object):
 
     def __init__(self, index_storage, query_words_base_forms):
         self.index_storage = index_storage
-        self.query_words_base_forms = query_words_base_forms
+        self.query_words_base_forms = dict(query_words_base_forms)
 
     def _get_title_rating(self, title):
         all_title_words = set(map(lambda x: x.lower(), title.split(" ")))
@@ -34,3 +34,5 @@ class SearchResultRater(object):
         content_rating = self._get_content_rating(wiki_article.content)
         article_id_rating = self._get_article_id_rating(wiki_article.id)
         return title_rating + content_rating + article_id_rating
+
+
