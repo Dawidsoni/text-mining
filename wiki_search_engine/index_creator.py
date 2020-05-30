@@ -26,7 +26,7 @@ def _create_positional_index(wiki_articles):
     position_counter = 1
     documents_positions = []
     for wiki_article in sorted(wiki_articles, key=lambda x: x.id):
-        list_of_base_forms = _get_base_forms_from_article(words_base_forms, wiki_article)
+        list_of_base_forms = utils.get_base_forms_from_article(words_base_forms, wiki_article)
         documents_positions.append(position_counter)
         for base_forms in list_of_base_forms:
             for term in base_forms:

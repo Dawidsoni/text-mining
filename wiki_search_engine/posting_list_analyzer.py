@@ -60,7 +60,6 @@ def analyze_posting_lists():
     logger.info(f"Bytes in 128 coded posting lists: {bytes_in_128_posting_lists}")
     logger.info(f"Bytes in 16 coded posting lists: {bytes_in_16_posting_lists}")
     logger.info(f"Bytes in int32 lists: {bytes_in_int32_lists}")
-    logger.info(f"Bytes in int32 lists: {bytes_in_int32_lists}")
     logger.info(f"Bytes in gamma coding lists: {bytes_in_gamma_coding_lists}")
 
 
