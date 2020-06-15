@@ -7,6 +7,7 @@ import re
 import termcolor
 from collections import defaultdict
 
+import utils
 from caching_index_storage import CachingIndexStorage
 from index_type import IndexType
 from posting_list import PostingList
@@ -23,14 +24,22 @@ def _get_query_words_base_forms(index_storage, query):
     ]
 
 
-def _get_traditional_index_documents_ids(index_storage, query_words_base_forms):
-    query_base_forms = set(itertools.chain(*dict(query_words_base_forms).values()))
-    base_forms_posting_lists = defaultdict(
-        lambda: PostingList(), index_storage.get_terms_postings_lists(tuple(query_base_forms))
+def get_words_terms_identifiers(words_base_forms, terms_identifiers):
+    return {
+        term: [terms_identifiers[base_form] for base_form in base_forms]
+        for term, base_forms in words_base_forms.items()
+    }
+
+
+def _get_traditional_index_documents_ids(index_storage, query_words_base_forms, terms_identifiers):
+    query_terms_identifiers = get_words_terms_identifiers(dict(query_words_base_forms), terms_identifiers)
+    query_identifiers = set(itertools.chain(*query_terms_identifiers.values()))
+    terms_identifiers_posting_lists = defaultdict(
+        lambda: PostingList(), index_storage.get_terms_postings_lists(tuple(query_identifiers))
     )
     words_ordered_lists = set()
-    for word, base_forms in query_words_base_forms:
-        word_ordered_lists = [base_forms_posting_lists[x].decode_to_ordered_list() for x in base_forms]
+    for word, identifiers in query_terms_identifiers.items():
+        word_ordered_lists = [terms_identifiers_posting_lists[x].decode_to_ordered_list() for x in identifiers]
         if len(word_ordered_lists) == 0:
             continue
         word_merged_ordered_list = functools.reduce(lambda x, y: x | y, word_ordered_lists)
@@ -54,16 +63,17 @@ def _get_document_id_from_positions(documents_ids, term_position):
     return start_index
 
 
-def _get_positional_index_documents_ids(index_storage, query_words_base_forms):
-    query_base_forms = set(itertools.chain(*dict(query_words_base_forms).values()))
-    base_forms_posting_lists = defaultdict(
-        lambda: PostingList(), index_storage.get_terms_postings_lists(tuple(query_base_forms))
+def _get_positional_index_documents_ids(index_storage, query_words_base_forms, terms_identifiers):
+    query_terms_identifiers = get_words_terms_identifiers(dict(query_words_base_forms), terms_identifiers)
+    query_identifiers = set(itertools.chain(*query_terms_identifiers.values()))
+    terms_identifiers_posting_lists = defaultdict(
+        lambda: PostingList(), index_storage.get_terms_postings_lists(tuple(query_identifiers))
     )
     documents_ids = index_storage.get_document_positions()
     word_position = 0
     list_of_matched_positions = []
-    for word, base_forms in query_words_base_forms:
-        list_of_word_positions = [base_forms_posting_lists[x].decode_to_ordered_list() for x in base_forms]
+    for word, identifiers in query_terms_identifiers.items():
+        list_of_word_positions = [terms_identifiers_posting_lists[x].decode_to_ordered_list() for x in identifiers]
         shifted_word_positions = {position - word_position for position in itertools.chain(*list_of_word_positions)}
         list_of_matched_positions.append(shifted_word_positions)
         word_position += 1
@@ -72,7 +82,7 @@ def _get_positional_index_documents_ids(index_storage, query_words_base_forms):
 
 
 def _get_mixed_index_documents_ids(traditional_index_storage, positional_index_storage, query_parts,
-                                   query_words_base_forms):
+                                   query_words_base_forms, terms_identifiers):
     if len(query_parts) == 0:
         return
     list_of_documents_ids = []
@@ -84,11 +94,11 @@ def _get_mixed_index_documents_ids(traditional_index_storage, positional_index_s
         ]
         if query_part.query_type == QueryType.NORMAL:
             list_of_documents_ids.append(_get_traditional_index_documents_ids(
-                traditional_index_storage, words_base_forms_part
+                traditional_index_storage, words_base_forms_part, terms_identifiers
             ))
         elif query_part.query_type == QueryType.PHRASE:
             list_of_documents_ids.append(_get_positional_index_documents_ids(
-                positional_index_storage, words_base_forms_part
+                positional_index_storage, words_base_forms_part, terms_identifiers
             ))
         else:
             raise ValueError(f"Invalid query_type: {query_part.query_type}")
@@ -96,20 +106,26 @@ def _get_mixed_index_documents_ids(traditional_index_storage, positional_index_s
 
 
 def _get_matching_documents_ids(query, index_type, traditional_index_storage, positional_index_storage,
-                                query_words_base_forms):
+                                query_words_base_forms, terms_identifiers):
     if index_type == IndexType.TRADITIONAL:
-        return _get_traditional_index_documents_ids(traditional_index_storage, query_words_base_forms)
+        return _get_traditional_index_documents_ids(
+            traditional_index_storage, query_words_base_forms, terms_identifiers
+        )
     elif index_type == IndexType.POSITIONAL:
-        return _get_positional_index_documents_ids(positional_index_storage, query_words_base_forms)
+        return _get_positional_index_documents_ids(
+            positional_index_storage, query_words_base_forms, terms_identifiers
+        )
     elif index_type == IndexType.MIXED:
         return _get_mixed_index_documents_ids(
-            traditional_index_storage, positional_index_storage, query.query_parts, query_words_base_forms
+            traditional_index_storage, positional_index_storage, query.query_parts, query_words_base_forms,
+            terms_identifiers
         )
     else:
         raise ValueError(f"Invalid index_type: {index_type}")
 
 
-def _show_search_results(wiki_articles, index_storage, query_base_forms, max_results):
+def _show_search_results(wiki_articles, index_storage, terms_identifiers, query_terms_identifiers, max_results):
+    matching_identifiers = set(itertools.chain(*query_terms_identifiers.values()))
     for wiki_article in wiki_articles[:max_results]:
         print(termcolor.colored(wiki_article.title, color="green"))
         content_words = list(map(lambda x: x.lower(), wiki_article.content.split(" ")))
@@ -120,7 +136,8 @@ def _show_search_results(wiki_articles, index_storage, query_base_forms, max_res
             word_base_forms = content_words_base_forms[content_words[i]]
             if len(word_base_forms) == 0:
                 word_base_forms.append(content_words[i])
-            if any([word_base_form in query_base_forms for word_base_form in word_base_forms]):
+            word_identifiers = {terms_identifiers[base_form] for base_form in word_base_forms}
+            if any([word_identifier in matching_identifiers for word_identifier in word_identifiers]):
                 colored_words_indexes.add(i)
                 displayed_words_indexes.update(range(i - 5, i + 6))
         for i in range(len(content_words)):
@@ -136,6 +153,7 @@ def _show_search_results(wiki_articles, index_storage, query_base_forms, max_res
 def _parse_input_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("-index_type", type=IndexType, choices=list(IndexType.__dict__.values()))
+    parser.add_argument("--use_terms_clusters", type=bool, default=False)
     return vars(parser.parse_args())
 
 
@@ -157,21 +175,25 @@ def _get_query(index_type):
     return Query(cleaned_query, query_parts)
 
 
-def run_index_query(index_type):
-    traditional_index_storage = CachingIndexStorage(IndexType.TRADITIONAL, truncate_old=False)
-    positional_index_storage = CachingIndexStorage(IndexType.POSITIONAL, truncate_old=False)
+def run_index_query(index_type, use_terms_clusters):
+    traditional_index_storage = CachingIndexStorage(IndexType.TRADITIONAL, use_terms_clusters, truncate_old=False)
+    positional_index_storage = CachingIndexStorage(IndexType.POSITIONAL, use_terms_clusters, truncate_old=False)
+    terms_identifiers = utils.get_terms_identifiers(use_terms_clusters)
     while True:
         print("Type query:")
         query = _get_query(index_type)
         query_words_base_forms = _get_query_words_base_forms(traditional_index_storage, query.raw_query)
-        query_base_forms = set(itertools.chain(*dict(query_words_base_forms).values()))
+        query_terms_identifiers = get_words_terms_identifiers(dict(query_words_base_forms), terms_identifiers)
         document_ids = _get_matching_documents_ids(
-            query, index_type, traditional_index_storage, positional_index_storage, query_words_base_forms
+            query, index_type, traditional_index_storage, positional_index_storage, query_words_base_forms,
+            terms_identifiers
         )
         wiki_articles = list(traditional_index_storage.get_wiki_articles(document_ids).values())
         search_result_rater = SearchResultRater(traditional_index_storage, query_words_base_forms)
         ranked_wiki_articles = list(sorted(wiki_articles, key=search_result_rater.rate_wiki_article, reverse=True))
-        _show_search_results(ranked_wiki_articles, traditional_index_storage, query_base_forms, max_results=10)
+        _show_search_results(
+            ranked_wiki_articles, traditional_index_storage, terms_identifiers, query_terms_identifiers, max_results=10
+        )
 
 
 if __name__ == "__main__":

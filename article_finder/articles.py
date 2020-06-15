@@ -16,8 +16,8 @@ def _create_wiki_article(article_id, parsed_article):
     return WikiArticle(id=article_id, title=title, content=content)
 
 
-def read_wiki_articles():
-    with open("data/wiki_slice.txt") as stream:
+def read_wiki_articles(path="data/wiki_slice.txt"):
+    with open(path) as stream:
         merged_lines = "\n".join(stream.readlines())
         parsed_articles = merged_lines.split("\n\n\n")
         return list(map(

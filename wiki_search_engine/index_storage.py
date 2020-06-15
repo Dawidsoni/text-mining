@@ -8,11 +8,11 @@ from wiki_article import WikiArticle
 
 
 class IndexStorage(object):
-    TRADITIONAL_INDEX_DATABASE_NAME = 'data/traditional_index.db'
-    POSITIONAL_INDEX_DATABASE_NAME = 'data/positional_index.db'
+    TRADITIONAL_INDEX_DATABASE_NAME = 'traditional_index'
+    POSITIONAL_INDEX_DATABASE_NAME = 'positional_index'
 
-    def __init__(self, index_type, truncate_old):
-        self.database_name = IndexStorage._get_database_name(index_type)
+    def __init__(self, index_type, use_terms_clusters, truncate_old):
+        self.database_name = IndexStorage._get_database_name(index_type, use_terms_clusters)
         if truncate_old:
             self._truncate_old_if_exists()
         self.connection = sqlite3.connect(self.database_name)
@@ -27,16 +27,19 @@ class IndexStorage(object):
         self.connection.close()
 
     @staticmethod
-    def _get_database_name(index_type):
-        if index_type == IndexType.TRADITIONAL:
-            return IndexStorage.TRADITIONAL_INDEX_DATABASE_NAME
-        elif index_type == IndexType.POSITIONAL:
-            return IndexStorage.POSITIONAL_INDEX_DATABASE_NAME
-        elif index_type == IndexType.MIXED:
-            return IndexStorage.TRADITIONAL_INDEX_DATABASE_NAME
-        else:
-            raise ValueError(f"Invalid index_type: {index_type}")
-        
+    def _get_index_type_database_name(index_type):
+        return {
+            IndexType.TRADITIONAL: 'traditional_index',
+            IndexType.POSITIONAL: 'positional_index',
+            IndexType.MIXED: 'traditional_index',
+        }[index_type]
+
+    @staticmethod
+    def _get_database_name(index_type, use_terms_clusters):
+        index_type_name = IndexStorage._get_index_type_database_name(index_type)
+        index_terms_suffix = "_clusters" if use_terms_clusters else ""
+        return f"data/{index_type_name}{index_terms_suffix}.db"
+
     def _truncate_old_if_exists(self):
         if os.path.exists(self.database_name):
             os.remove(self.database_name)

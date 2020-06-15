@@ -12,8 +12,8 @@ class ListItemCache(object):
 
 class CachingIndexStorage(IndexStorage):
 
-    def __init__(self, index_type, truncate_old):
-        super().__init__(index_type, truncate_old)
+    def __init__(self, index_type, use_terms_clusters, truncate_old):
+        super().__init__(index_type, use_terms_clusters, truncate_old)
 
     @functools.lru_cache(maxsize=10_000_000)
     def _list_items_cache(self, _func, item):

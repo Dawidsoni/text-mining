@@ -97,6 +97,7 @@ def process_query(query, input_arguments, article_embeddings, ids_wiki_articles,
     best_id, matching_article_ids = find_best_article_id_with_matching_ids(
         trigrams_article_ids, ids_wiki_articles, query
     )
+    print(termcolor.colored(f"Query: {query}", color="green"))
     if input_arguments.show_similar_documents:
         similar_article_ids = embeddings.get_close_embeddings_rows(best_id, article_embeddings)
         show_wiki_articles([ids_wiki_articles[x] for x in similar_article_ids])
@@ -106,16 +107,22 @@ def process_query(query, input_arguments, article_embeddings, ids_wiki_articles,
     print()
 
 
-def run_article_finder(input_arguments):
-    logger = utils.get_default_logger()
-    logger.info("Reading wiki articles...")
-    wiki_articles = articles.read_wiki_articles()
+def get_article_embeddings(input_arguments, wiki_articles, logger):
+    if not input_arguments.show_similar_documents:
+        return None
     logger.info("Creating embeddings...")
-    article_embeddings = embeddings.get_articles_embeddings(
+    return embeddings.get_articles_embeddings(
         wiki_articles,
         input_arguments.embeddings_load_path,
         input_arguments.embeddings_save_path
     )
+
+
+def run_article_finder(input_arguments):
+    logger = utils.get_default_logger()
+    logger.info("Reading wiki articles...")
+    wiki_articles = articles.read_wiki_articles()
+    article_embeddings = get_article_embeddings(input_arguments, wiki_articles, logger)
     logger.info("Creating n-grams...")
     ids_wiki_articles = {x.id: x for x in wiki_articles}
     trigrams_article_ids = create_trigrams_article_ids(wiki_articles)

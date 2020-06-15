@@ -53,5 +53,10 @@ class PostingList(object):
         self.coded_sequence += bytearray(coded_value_increase)
         self.last_element = document_id
 
+    def append_if_not_equal_to_last_element(self, document_id):
+        if self.last_element == document_id:
+            return
+        self.append(document_id)
+
     def decode_to_ordered_list(self):
         return OrderedList(self.decode_from_bytes_to_list(self.coded_sequence))

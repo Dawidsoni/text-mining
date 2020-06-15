@@ -12,8 +12,11 @@ class SearchResultRater(object):
         self.query_words_base_forms = dict(query_words_base_forms)
 
     def _get_title_rating(self, title):
-        all_title_words = set(map(lambda x: x.lower(), title.split(" ")))
-        title_words_base_forms = self.index_storage.get_words_base_forms(all_title_words)
+        all_title_words = set(map(lambda x: x.lower(), title.lower().split(" ")))
+        title_words_base_forms = {
+            word: base_forms if len(base_forms) > 0 else [word]
+            for word, base_forms in self.index_storage.get_words_base_forms(all_title_words).items()
+        }
         query_base_forms = set(itertools.chain(*self.query_words_base_forms.values()))
         rating = 0.0
         for title_word in all_title_words:
@@ -23,7 +26,7 @@ class SearchResultRater(object):
         return rating
 
     def _get_content_rating(self, content):
-        all_content_words = set(map(lambda x: x.lower(), content.split(" ")))
+        all_content_words = set(map(lambda x: x.lower(), content.lower().split(" ")))
         all_query_words = set(self.query_words_base_forms.keys())
         return float(len(all_content_words.intersection(all_query_words))) * 3
 

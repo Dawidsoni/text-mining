@@ -4,6 +4,11 @@ from collections import defaultdict
 from wiki_article import WikiArticle
 
 
+class IdentityDictionary(object):
+    def __getitem__(self, item):
+        return item
+
+
 def _create_wiki_article(article_id, parsed_article):
     article_parts = parsed_article.split("\n\n")
     title = re.search("TITLE: (.*)", article_parts[0].strip()).group(1)
@@ -11,8 +16,8 @@ def _create_wiki_article(article_id, parsed_article):
     return WikiArticle(id=article_id, title=title, content=content)
 
 
-def read_wiki_articles():
-    with open("data/wiki_slice.txt") as stream:
+def read_wiki_articles(path="data/wiki_slice.txt"):
+    with open(path) as stream:
         merged_lines = "\n".join(stream.readlines())
         parsed_articles = merged_lines.split("\n\n\n")
         return list(map(
@@ -21,9 +26,9 @@ def read_wiki_articles():
         ))
 
 
-def read_words_base_forms():
+def read_words_base_forms(path="data/base_forms.txt"):
     words_base_forms = defaultdict(lambda: [])
-    with open("data/base_forms.txt", "r") as stream:
+    with open(path, "r") as stream:
         bases_words = map(lambda x: x.split(";")[0:2], stream.readlines())
         for base, word in bases_words:
             words_base_forms[word].append(base)
@@ -45,3 +50,12 @@ def get_base_forms_from_article(words_base_forms, wiki_article, with_default_wor
         elif cleaned_word in words_base_forms:
             list_of_base_forms.append(words_base_forms[cleaned_word])
     return list_of_base_forms
+
+
+def get_terms_identifiers(use_terms_clusters=False, path="data/terms_clusters_10000.txt"):
+    if not use_terms_clusters:
+        return IdentityDictionary()
+    with open(path) as file_stream:
+        lines = [line.strip() for line in file_stream.readlines()]
+        terms_identifiers = [(line.split(" ")[0], line.split(" ")[1]) for line in lines]
+        return defaultdict(lambda: "0", terms_identifiers)

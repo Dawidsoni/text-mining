@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict, Counter
 
 import attr
@@ -12,31 +13,40 @@ class ArticleEmbeddings(object):
     ids_rows = attr.ib()
 
 
-def read_words_base_forms():
+def read_words_base_forms(path="data/base_forms.txt"):
     words_base_forms = defaultdict(lambda: [])
-    with open("data/base_forms.txt", "r") as file_stream:
+    with open(path, "r") as file_stream:
         bases_words = map(lambda x: x.split(";")[0:2], file_stream.readlines())
         for base, word in bases_words:
             words_base_forms[word].append(base)
     return words_base_forms
 
 
-def get_terms_indexes(words_base_forms, wiki_articles):
+def get_word_base_forms(words_base_forms, word, add_missing_forms):
+    word = word.lower()
+    if len(words_base_forms[word]) > 0:
+        return words_base_forms[word]
+    if not add_missing_forms or re.search("^[a-z]+$", word) is None:
+        return []
+    return [word]
+
+
+def get_terms_indexes(words_base_forms, wiki_articles, add_missing_forms=True):
     terms_indexes = {}
     for wiki_article in wiki_articles:
         for word in wiki_article.content.split(" "):
-            for base_form in words_base_forms[word.lower()]:
+            for base_form in get_word_base_forms(words_base_forms, word, add_missing_forms):
                 if base_form not in terms_indexes:
                     terms_indexes[base_form] = len(terms_indexes)
     return terms_indexes
 
 
-def create_tf_matrix(words_base_forms, wiki_articles, ids_rows, terms_indexes):
+def create_tf_matrix(words_base_forms, wiki_articles, ids_rows, terms_indexes, add_missing_forms=True):
     tf_matrix = scipy.sparse.dok_matrix((len(ids_rows), len(terms_indexes)))
     for wiki_article in wiki_articles:
         article_terms_counter = Counter()
         for word in wiki_article.content.split(" "):
-            for term in words_base_forms[word.lower()]:
+            for term in get_word_base_forms(words_base_forms, word, add_missing_forms):
                 article_terms_counter[term] += 1
         sum_of_article_terms = sum(article_terms_counter.values())
         for term in article_terms_counter:
@@ -45,12 +55,12 @@ def create_tf_matrix(words_base_forms, wiki_articles, ids_rows, terms_indexes):
     return tf_matrix
 
 
-def create_idf_vector(words_base_forms, wiki_articles, terms_indexes):
+def create_idf_vector(words_base_forms, wiki_articles, terms_indexes, add_missing_forms=True):
     terms_documents_counts = Counter()
     for wiki_article in wiki_articles:
         article_terms = set()
         for word in wiki_article.content.split(" "):
-            for term in words_base_forms[word.lower()]:
+            for term in get_word_base_forms(words_base_forms, word, add_missing_forms):
                 if term in article_terms:
                     continue
                 article_terms.add(term)
@@ -77,8 +87,7 @@ def create_embeddings(wiki_articles, ids_rows):
 
 def get_embeddings(wiki_articles, ids_rows, load_path=None):
     if load_path is not None:
-        loaded_matrix = scipy.sparse.load_npz(load_path)
-        return scipy.sparse.dok_matrix(loaded_matrix)
+        return scipy.sparse.load_npz(load_path)
     return create_embeddings(wiki_articles, ids_rows)
 
 
