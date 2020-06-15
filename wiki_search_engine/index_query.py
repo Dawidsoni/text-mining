@@ -184,12 +184,13 @@ def run_index_query(index_type, use_terms_clusters):
         query = _get_query(index_type)
         query_words_base_forms = _get_query_words_base_forms(traditional_index_storage, query.raw_query)
         query_terms_identifiers = get_words_terms_identifiers(dict(query_words_base_forms), terms_identifiers)
+        query_identifiers = set(itertools.chain(*query_terms_identifiers.values()))
         document_ids = _get_matching_documents_ids(
             query, index_type, traditional_index_storage, positional_index_storage, query_words_base_forms,
             terms_identifiers
         )
         wiki_articles = list(traditional_index_storage.get_wiki_articles(document_ids).values())
-        search_result_rater = SearchResultRater(traditional_index_storage, query_words_base_forms)
+        search_result_rater = SearchResultRater(traditional_index_storage, terms_identifiers, query_identifiers)
         ranked_wiki_articles = list(sorted(wiki_articles, key=search_result_rater.rate_wiki_article, reverse=True))
         _show_search_results(
             ranked_wiki_articles, traditional_index_storage, terms_identifiers, query_terms_identifiers, max_results=10
